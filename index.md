@@ -1,37 +1,76 @@
-## Welcome to GitHub Pages
+### How to setup SignalR with a .Net Core server and client
 
-You can use the [editor on GitHub](https://github.com/DilanLivera/test-github-pages/edit/gh-pages/index.md) to maintain and preview the content for your website in Markdown files.
+#### Setup the hub in the server
+1. Create a Hub
+    ```C#
+      using Microsoft.AspNetCore.SignalR;
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+      public class ViewHub : Hub
+      {
+          public static int ViewCounter { get; set; } = 0;
 
-### Markdown
+          public async Task NotifyWatchingAsync()
+          {
+              ViewCounter++;
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+              await Clients.All.SendAsync("updateViewCount", ViewCounter);
+          }
+      }
+    ```
 
-```markdown
-Syntax highlighted code block
+2. Add SingnalR services to `IServiceCollection` in `ConfigureServices` method of `Startup` class
+    ```C#
+      public void ConfigureServices(IServiceCollection services)
+      {
+          services.AddSignalR();
+      }
+    ```
 
-# Header 1
-## Header 2
-### Header 3
+3. Add an endpoint to the hub
+    ```C#
+      public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+      {
+          app.UseEndpoints(routeBuilder =>
+          {
+              routeBuilder.MapHub<ViewHub>("/hubs/view");
+          });
+      }
+    ```
 
-- Bulleted
-- List
+#### Setup the client (.Net Core web application)
+1. Add `@microsoft/signalr@latest` client-side library using `unkpg` provider. Set target location as `wwwroot/js/signalr/` in the Add Client-Side library window
 
-1. Numbered
-2. List
+2. Add `<script src="~/js/signalr/dist/browser/signalr.js"></script>` to `<body></body>` tag
 
-**Bold** and _Italic_ and `Code` text
+3. Setup the SignalR connection in the `site.js` file
+    ```JS
+    "use strict";
 
-[Link](url) and ![Image](src)
-```
+    let connection = new signalR.HubConnectionBuilder()
+      .withUrl("/hubs/view")
+      .build();
 
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
+    connection.on("updateViewCount", (number) => {
+      var counter = document.getElementById("viewCounter");
+      counter.innerText = number;
+    });
 
-### Jekyll Themes
+    function notify() {
+      connection.send("notifyWatchingAsync");
+    }
 
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/DilanLivera/test-github-pages/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
+    function startSuccess() {
+      console.info("Connection started");
+      notify();
+    }
 
-### Support or Contact
+    function startFail() {
+      console.error("Connection failed");
+    }
 
-Having trouble with Pages? Check out our [documentation](https://docs.github.com/categories/github-pages-basics/) or [contact support](https://support.github.com/contact) and we’ll help you sort it out.
+    connection.start().then(startSuccess, startFail);
+    ```
+
+
+#### Links
+- [Tutorial: Get started with ASP.NET Core SignalR](https://docs.microsoft.com/en-us/aspnet/core/tutorials/signalr?view=aspnetcore-5.0&tabs=visual-studio)
